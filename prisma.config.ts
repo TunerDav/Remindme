@@ -1,7 +1,7 @@
 import { config } from 'dotenv'
 import { defineConfig, env } from 'prisma/config'
 
-// Load .env file
+// Load .env file if it exists
 config()
 
 export default defineConfig({
@@ -10,7 +10,6 @@ export default defineConfig({
     path: './prisma/migrations',
     seed: 'tsx prisma/seed.ts',
   },
-  datasource: {
-    url: env('DATABASE_URL'),
-  },
+  // Don't require DATABASE_URL during generation
+  // It will be provided to PrismaClient constructor at runtime
 })
