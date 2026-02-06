@@ -1,0 +1,360 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// =====================
+// Enums
+// =====================
+
+enum ReminderType {
+  birthday
+  wedding_anniversary
+  call
+  invite
+  visit
+  custom
+
+  @@map("reminder_type")
+}
+
+enum RepeatInterval {
+  none
+  weekly
+  monthly
+  quarterly
+  yearly
+
+  @@map("repeat_interval")
+}
+
+enum RelationshipType {
+  spouse
+  child
+  parent
+  sibling
+  grandparent
+  grandchild
+  other
+
+  @@map("relationship_type")
+}
+
+// =====================
+// Models
+// =====================
+
+model Congregation {
+  id        Int       @id @default(autoincrement())
+  name      String    @db.VarChar(255)
+  city      String?   @db.VarChar(255)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  contacts Contact[]
+  families Family[]
+
+  @@map("congregations")
+}
+
+model Family {
+  id              Int           @id @default(autoincrement())
+  name            String        @db.VarChar(100)
+  phone           String?       @db.VarChar(50)
+  email           String?       @db.VarChar(255)
+  address         String?
+  congregationId  Int?          @map("congregation_id")
+  notes           String?
+  photoUrl        String?       @map("photo_url")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @default(now()) @updatedAt @map("updated_at")
+
+  congregation      Congregation?      @relation(fields: [congregationId], references: [id], onDelete: SetNull)
+  members           Contact[]
+  tags              FamilyTag[]
+  interactions      Interaction[]
+  reminderFamilies  ReminderFamily[]
+  eventSlotContacts EventSlotContact[]
+  inviteGroups      InviteGroup[]
+
+  @@index([congregationId])
+  @@index([name])
+  @@map("families")
+}
+
+model Contact {
+  id                  Int       @id @default(autoincrement())
+  firstName           String    @map("first_name") @db.VarChar(100)
+  lastName            String    @map("last_name") @db.VarChar(100)
+  phone               String?   @db.VarChar(50)
+  email               String?   @db.VarChar(255)
+  address             String?
+  congregationId      Int?      @map("congregation_id")
+  familyId            Int?      @map("family_id")
+  birthday            DateTime? @db.Date
+  weddingAnniversary  DateTime? @map("wedding_anniversary") @db.Date
+  notes               String?
+  photoUrl            String?   @map("photo_url")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  congregation           Congregation?           @relation(fields: [congregationId], references: [id], onDelete: SetNull)
+  family                 Family?                 @relation(fields: [familyId], references: [id], onDelete: SetNull)
+  tags                   ContactTag[]
+  interactions           Interaction[]
+  reminderContacts       ReminderContact[]
+  eventSlotContacts      EventSlotContact[]
+  relationshipsFrom      ContactRelationship[]   @relation("RelationshipFrom")
+  relationshipsTo        ContactRelationship[]   @relation("RelationshipTo")
+  inviteGroupMemberships InviteGroupMember[]
+
+  @@index([congregationId])
+  @@index([familyId])
+  @@index([firstName, lastName])
+  @@map("contacts")
+}
+
+model Tag {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique @db.VarChar(50)
+  color     String    @default("#3b82f6") @db.VarChar(7)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  contactTags ContactTag[]
+  familyTags  FamilyTag[]
+
+  @@map("tags")
+}
+
+model Reminder {
+  id          Int            @id @default(autoincrement())
+  type        ReminderType
+  title       String         @db.VarChar(255)
+  description String?
+  dueDate     DateTime       @map("due_date") @db.Date
+  repeat      RepeatInterval @default(none)
+  completed   Boolean        @default(false)
+  completedAt DateTime?      @map("completed_at")
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  contacts ReminderContact[]
+  families ReminderFamily[]
+
+  @@index([dueDate])
+  @@index([completed])
+  @@map("reminders")
+}
+
+model Interaction {
+  id              Int       @id @default(autoincrement())
+  contactId       Int?      @map("contact_id")
+  familyId        Int?      @map("family_id")
+  inviteGroupId   Int?      @map("invite_group_id")
+  type            String    @db.VarChar(50)
+  notes           String?
+  interactionDate DateTime  @map("interaction_date") @db.Date
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  contact     Contact?     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  family      Family?      @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  inviteGroup InviteGroup? @relation(fields: [inviteGroupId], references: [id], onDelete: Cascade)
+
+  @@index([contactId])
+  @@index([familyId])
+  @@index([inviteGroupId])
+  @@index([interactionDate])
+  @@map("interactions")
+}
+
+// =====================
+// Junction Tables
+// =====================
+
+model ContactTag {
+  contactId Int      @map("contact_id")
+  tagId     Int      @map("tag_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tagId])
+  @@index([contactId])
+  @@index([tagId])
+  @@map("contact_tags")
+}
+
+model FamilyTag {
+  familyId  Int      @map("family_id")
+  tagId     Int      @map("tag_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([familyId, tagId])
+  @@index([familyId])
+  @@index([tagId])
+  @@map("family_tags")
+}
+
+model ReminderContact {
+  reminderId Int      @map("reminder_id")
+  contactId  Int      @map("contact_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  reminder Reminder @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+  contact  Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@id([reminderId, contactId])
+  @@index([reminderId])
+  @@index([contactId])
+  @@map("reminder_contacts")
+}
+
+model ReminderFamily {
+  reminderId Int      @map("reminder_id")
+  familyId   Int      @map("family_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  reminder Reminder @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+  family   Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  @@id([reminderId, familyId])
+  @@index([reminderId])
+  @@index([familyId])
+  @@map("reminder_families")
+}
+
+model ContactRelationship {
+  id               Int              @id @default(autoincrement())
+  contactId        Int              @map("contact_id")
+  relatedContactId Int              @map("related_contact_id")
+  relationshipType RelationshipType @map("relationship_type")
+  notes            String?
+  createdAt        DateTime         @default(now()) @map("created_at")
+
+  contact        Contact @relation("RelationshipFrom", fields: [contactId], references: [id], onDelete: Cascade)
+  relatedContact Contact @relation("RelationshipTo", fields: [relatedContactId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, relatedContactId, relationshipType])
+  @@index([contactId])
+  @@index([relatedContactId])
+  @@map("contact_relationships")
+}
+
+// =====================
+// Event System
+// =====================
+
+model EventTemplate {
+  id                   Int       @id @default(autoincrement())
+  name                 String    @db.VarChar(100)
+  description          String?
+  category             String?   @db.VarChar(50)
+  recurrenceType       String    @default("monthly") @map("recurrence_type") @db.VarChar(20)
+  recurrenceInterval   Int       @default(1) @map("recurrence_interval")
+  recurrenceDayOfWeek  Int?      @map("recurrence_day_of_week")
+  recurrenceDayOfMonth Int?      @map("recurrence_day_of_month")
+  recurrenceWeekOfMonth Int?     @map("recurrence_week_of_month")
+  timeOfDay            DateTime? @map("time_of_day") @db.Time()
+  maxAttendees         Int       @default(1) @map("max_attendees")
+  active               Boolean   @default(true)
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  slots EventSlot[]
+
+  @@map("event_templates")
+}
+
+model EventSlot {
+  id              Int       @id @default(autoincrement())
+  eventTemplateId Int       @map("event_template_id")
+  slotDate        DateTime  @map("slot_date") @db.Date
+  slotTime        DateTime? @map("slot_time") @db.Time()
+  status          String    @default("available") @db.VarChar(20)
+  notes           String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  template     EventTemplate          @relation(fields: [eventTemplateId], references: [id], onDelete: Cascade)
+  contacts     EventSlotContact[]
+  inviteGroups EventSlotInviteGroup[]
+
+  @@unique([eventTemplateId, slotDate])
+  @@index([eventTemplateId])
+  @@index([slotDate])
+  @@index([status])
+  @@map("event_slots")
+}
+
+model EventSlotContact {
+  eventSlotId Int       @map("event_slot_id")
+  contactId   Int       @map("contact_id")
+  familyId    Int?      @map("family_id")
+  invitedAt   DateTime  @default(now()) @map("invited_at")
+  response    String?   @db.VarChar(20)
+
+  eventSlot EventSlot @relation(fields: [eventSlotId], references: [id], onDelete: Cascade)
+  contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  family    Family?   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  @@id([eventSlotId, contactId])
+  @@index([eventSlotId])
+  @@index([contactId])
+  @@index([familyId])
+  @@map("event_slot_contacts")
+}
+
+// =====================
+// Invite Groups
+// =====================
+
+model InviteGroup {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(150)
+  familyId  Int?     @map("family_id")
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  family       Family?                @relation(fields: [familyId], references: [id], onDelete: SetNull)
+  members      InviteGroupMember[]
+  interactions Interaction[]
+  eventSlots   EventSlotInviteGroup[]
+
+  @@index([familyId])
+  @@map("invite_groups")
+}
+
+model InviteGroupMember {
+  inviteGroupId Int      @map("invite_group_id")
+  contactId     Int      @map("contact_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  inviteGroup InviteGroup @relation(fields: [inviteGroupId], references: [id], onDelete: Cascade)
+  contact     Contact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@id([inviteGroupId, contactId])
+  @@index([inviteGroupId])
+  @@index([contactId])
+  @@map("invite_group_members")
+}
+
+model EventSlotInviteGroup {
+  eventSlotId   Int      @map("event_slot_id")
+  inviteGroupId Int      @map("invite_group_id")
+  invitedAt     DateTime @default(now()) @map("invited_at")
+  response      String?  @db.VarChar(20)
+
+  eventSlot   EventSlot   @relation(fields: [eventSlotId], references: [id], onDelete: Cascade)
+  inviteGroup InviteGroup @relation(fields: [inviteGroupId], references: [id], onDelete: Cascade)
+
+  @@id([eventSlotId, inviteGroupId])
+  @@index([eventSlotId])
+  @@index([inviteGroupId])
+  @@map("event_slot_invite_groups")
+}
